@@ -1,0 +1,193 @@
+!pip install -q git+https://github.com/tensorflow/docs
+1.Importing Necessary Libraries:
+python
+_______________________________________________________________________________________________________________________________________
+import tensorflow as tf
+import keras
+from keras import layers, models, ops                                             
+import numpy as np
+import imageio
+from tensorflow_docs.vis import embed
+import matplotlib.pyplot as plt
+_________________________________________________________________________________________________________________________________________
+tensorflow and keras for neural network creation and training.
+
+numpy for numerical operations.
+
+imageio for handling images.                                                       EXPIATION 
+
+tensorflow_docs.vis for embedding visuals.
+
+matplotlib for plotting images.
+___________________________________________________________________________________________________________________________________________
+Loading and Preprocessing the CelebA Dataset:                                      NEXT
+python
+____________________________________________________________________________________________________________________________________________
+celeb_data = tf.keras.datasets.CelebA()
+(X_train, y_train), (X_test, y_test) = celeb_data.load_data()                         
+X_train, X_test = X_train / 255.0, X_test / 255.0
+____________________________________________________________________________________________________________________________________________
+Load the CelebA dataset.
+                                                                                        EXPLATION
+Normalize pixel values to the range [0, 1].
+_____________________________________________________________________________________________________________________________________________
+Creating a TensorFlow Dataset:
+python                                                                           NEXT
+___________________________________________________________________________________________________________________________________________-
+batch_size = 32
+dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))                      
+dataset = dataset.shuffle(buffer_size=1024).batch(batch_size)
+_____________________________________________________________________________________________________________________________________________
+Create a TensorFlow dataset object.
+Shuffle and batch the dataset.                                                          PROCESS 
+_____________________________________________________________________________________________________________________________________________
+Setting Parameters for the Generator and Discriminator:
+                                                                                    NEXT
+python
+______________________________________________________________________________________________________________________________________________
+latent_dim = 100
+num_classes = 10
+num_channels = 3
+generator_in_channels = latent_dim + num_classes
+discriminator_in_channels = num_channels + num_classes                                  
+print(generator_in_channels, discriminator_in_channels)
+______________________________________________________________________________________________________________________________________________
+Define the input dimensions for the generator and discriminator models.                        PROCESS
+_______________________________________________________________________________________________________________________________________________
+Building the Discriminator:
+                                                                                            NEXT
+python
+_____________________________________________________________________________________________________________________________________________
+discriminator = models.Sequential(
+    [
+        layers.InputLayer((218, 178, discriminator_in_channels)),
+        layers.Conv2D(64, (3, 3), strides=(2, 2), padding="same"),
+        layers.LeakyReLU(negative_slope=0.2),                                                   
+        layers.Conv2D(128, (3, 3), strides=(2, 2), padding="same"),
+        layers.LeakyReLU(negative_slope=0.2),
+        layers.GlobalMaxPooling2D(),
+        layers.Dense(1),
+    ],
+    name="discriminator",
+)
+_________________________________________________________________________________________________________________________________________________
+Create a CNN-based discriminator model to classify images as real or fake.                         PROCESS
+______________________________________________________________________________________________________________________________________________
+Building the Generator:
+                                                                                                    NEXT
+python
+_________________________________________________________________________________________________________________________________________________
+generator = models.Sequential(
+    [
+        layers.InputLayer((generator_in_channels,)),
+        layers.Dense(14 * 11 * generator_in_channels),
+        layers.LeakyReLU(negative_slope=0.2),
+        layers.Reshape((14, 11, generator_in_channels)),
+        layers.Conv2DTranspose(128, (4, 4), strides=(2, 2), padding="same"),                         
+        layers.LeakyReLU(negative_slope=0.2),
+        layers.Conv2DTranspose(128, (4, 4), strides=(2, 2), padding="same"),
+        layers.LeakyReLU(negative_slope=0.2),
+        layers.Conv2D(num_channels, (7, 7), padding="same", activation="sigmoid"),
+    ],
+    name="generator",
+)
+_________________________________________________________________________________________________________________________________________________
+Create a generator model that generates images from random noise.                                PROCESS
+_________________________________________________________________________________________________________________________________________________
+Defining the ConditionalGAN Class:
+
+python                                                                                            NEXT
+_________________________________________________________________________________________________________________________________________________
+class ConditionalGAN(keras.Model):
+    def __init__(self, discriminator, generator, latent_dim):
+        super().__init__()
+        self.discriminator = discriminator
+        self.generator = generator
+        self.latent_dim = latent_dim
+        self.seed_generator = keras.random.SeedGenerator(1337)
+        self.gen_loss_tracker = keras.metrics.Mean(name="generator_loss")
+        self.disc_loss_tracker = keras.metrics.Mean(name="discriminator_loss")
+    
+    @property
+    def metrics(self):
+        return [self.gen_loss_tracker, self.disc_loss_tracker]
+    
+    def compile(self, d_optimizer, g_optimizer, loss_fn):
+        super().compile()
+        self.d_optimizer = d_optimizer
+        self.g_optimizer = g_optimizer
+        self.loss_fn = loss_fn
+    
+    def train_step(self, data):
+        # Training logic here
+______________________________________________________________________________________________________________________________________________
+Define a custom GAN model that includes the training step for both generator and discriminator.             PROCESS
+____________________________________________________________________________________________________________ ___________________________________
+Compiling and Training the GAN:
+                                                                                                             NEXT
+python
+_______________________________________________________________________________________________________________________________________________
+cond_gan = ConditionalGAN(discriminator=discriminator, generator=generator, latent_dim=latent_dim)
+cond_gan.compile(
+    d_optimizer=keras.optimizers.Adam(learning_rate=0.0003),
+    g_optimizer=keras.optimizers.Adam(learning_rate=0.0003),
+    loss_fn=keras.losses.BinaryCrossentropy(from_logits=True),
+)
+cond_gan.fit(dataset, epochs=2)
+__________________________________________________________________________________________________________________________________________________
+Compile the GAN with optimizers and loss function.
+
+Train the GAN on the dataset.                                                                            PROCESS
+_________________________________________________________________________________________________________________________________________________
+Generating and Visualizing Images:
+                                                                                                        NEXT
+python
+____________________________________________________________________________________________________________________________________________
+# Extract trained generator
+trained_gen = cond_gan.generator
+
+# Interpolation logic
+# Choose the number of intermediate images to generate
+num_interpolation = 2
+interpolation_noise = keras.random.normal(shape=(1, latent_dim))
+interpolation_noise = ops.repeat(interpolation_noise, repeats=num_interpolation)
+interpolation_noise = ops.reshape(interpolation_noise, (num_interpolation, latent_dim))
+
+def interpolate_class_three_points(first_number, second_number, third_number):
+    # Interpolation logic here
+    # Combine noise and labels, and generate images
+    fake = trained_gen.predict(noise_and_labels)
+    return fake
+
+start_class = 2
+mid_class = 3
+end_class = 5
+fake_images = interpolate_class_three_points(start_class, mid_class, end_class)
+
+# Displaying and saving the generated images
+fake_images *= 255.0
+converted_images = fake_images.astype(np.uint8)
+converted_images = ops.image.resize(converted_images, (96, 96)).numpy().astype(np.uint8)
+imageio.mimsave("animation.gif", converted_images[:, :, :, 0], fps=1)
+embed.embed_file("animation.gif")
+
+plt.imshow(fake_images[0])
+plt.axis('off')
+plt.show()
+
+n = len(fake_images)
+fig, axes = plt.subplots(1, n, figsize=(20, 20))
+for i in range(n):
+    axes[i].imshow(fake_images[i])
+    axes[i].axis('off')
+plt.show()
+______________________________________________________________________________________________________________________________________________
+Extract the trained generator from the GAN.
+
+Define interpolation logic to generate transition images between classes.
+
+Generate and save an animation GIF of the images.                                                              END.................!
+
+Display the first image and plot all generated images in a grid.
+
+This thorough breakdown should help you understand each step of the process, from loading data to generating and visualizing images using the Conditional GAN. If you have any more questions or need further clarification, let me know! 🚀1
